@@ -6,6 +6,7 @@ import logging
 Node = namedtuple('Node', ['name', 'parent', 'children', 'type'])
 
 class PType(Enum):
+    '''Type of elements that can be found in a pathway'''
     GENE = 0
     FAMILY = 1
     COMPLEX = 2
@@ -28,6 +29,7 @@ def __attempt_add_child(g, parent, nid, node):
     return False
 
 def __process_stash(g, stash):
+    # This is not particularly efficient due to the stash copy..
     for toks in stash[:]:
         logging.debug(f"{toks[0]} :looking for parent in stash {toks[3]}")
         if toks[3] in g:
@@ -58,6 +60,7 @@ def __find_node(g, nid):
 
 # Transforms a pathwaymapper file into a graph
 def parse_pathway(path: str):
+    '''Parses a pathwaymapper file, returning a tree-like graph structure'''
     g = {}
 
     with open(path) as pwfile:
@@ -88,6 +91,8 @@ def parse_pathway(path: str):
 
             cur_str = pwfile.readline()
 
+        # Now that all the toplevel nodes have been added,
+        # attach their children
         while len(stash) > 0:
             __process_stash(g, stash)
 
@@ -105,9 +110,11 @@ def parse_pathway(path: str):
     return (title, g)
 
 def grouped_genes_size(pathway):
+    '''Returns the number of top-level pathway elements'''
     return sum(node[0].type != PType.PROCESS for node in pathway.values())
 
 def get_genes(pathway):
+    ''' Returns all the genes of a pathway (excluding families, complexes, processes)'''
     genes = set()
     for node in pathway.values():
         if node[0].type == PType.GENE:
@@ -116,13 +123,3 @@ def get_genes(pathway):
 
     return genes
 
-logging.basicConfig(level=logging.DEBUG, filename='pathway_parser.log')
-
-pathways = []
-for pw in os.listdir('./pathways'):
-    pathway = parse_pathway('./pathways/' + pw)
-    pathways.append(pathway)
-    print(pathway[0], "has toplevel nodes:", len(pathway[1]),
-          "grouped ", grouped_genes_size(pathway[1]))
-    print("And the following genes", get_genes(pathway[1]))
-    print()
