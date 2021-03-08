@@ -1,6 +1,63 @@
+#!/usr/bin/python3
 from pathways import *
 import pandas
 import numpy as np
+from joblib import Parallel, delayed
+import multiprocessing
+from pebble import concurrent
+from functools import reduce
+
+def calculate_patient_mutations(pid, seq_data, pathways):
+    patient_data = seq_data[
+        (seq_data['PatientFirstName'] == pid)
+        & (seq_data['Technology'] == 'NGS Q3')
+        # We only care about variants and pathogenic mutations
+        & (seq_data['TestResult'].isin(['variantdetected', 'Mutated, Pathogenic']))
+    ]
+
+    # Realistically, should never happen
+    if(patient_data.empty):
+        return {}
+
+    results = {}
+    for pw in pathways:
+        pw_genes = get_genes(pw[1])
+        pathway_mutations = patient_data[patient_data['Biomarker'].isin(pw_genes)]
+        if(pathway_mutations.empty):
+           results[pw[0]] = np.float64(0.0)
+           continue
+
+        perc_mutation = pathway_mutations.groupby(['Biomarker']).max()['NGS_PercentMutated'].sum() / grouped_genes_size(pw[1])
+        results[pw[0]] = perc_mutation
+
+    return results
+
+@concurrent.thread
+def _process_patients_chunk(patients):
+    results = {}
+    for patient in patients:
+        results[patient] = calculate_patient_mutations(patient, mutations_data, pathways)
+
+    return results
+
+def process_patients(patients):
+    results = {}
+    for patient in patients:
+        results[patient] = calculate_patient_mutations(patient, mutations_data, pathways)
+
+    return pandas.DataFrame.from_dict(results, orient='index')
+
+def parallel_process_patients(patients):
+    num_cores = multiprocessing.cpu_count()
+    toprocess = np.array_split(np.array(patients), num_cores)
+
+    res = []
+    for chunk in toprocess:
+        res.append(_process_patients_chunk(chunk))
+
+    results = reduce(lambda a, b: {**a, **(b.result())}, res, {})
+    return pandas.DataFrame.from_dict(results, orient='index')
+
 logging.basicConfig(level=logging.DEBUG, filename='pathway_parser.log')
 
 pathways = []
@@ -8,41 +65,20 @@ for pw in os.listdir('./pathways'):
     pathway = parse_pathway('./pathways/' + pw)
     pathways.append(pathway)
 
-patients_log = pandas.read_excel('TRIBE2_db.xlsx')
-patients_log = patients_log[patients_log['arm'] == 0]
+patients_log = pandas.read_csv('TRIBE2_db.csv')
 print('Patients list ready')
-
-mutations_data = pandas.read_excel('TRIBE2_seq_res.xlsx')
+mutations_data = pandas.read_csv('TRIBE2_seq_res.csv')
 print('Sequencing results ready')
 
-patients = patients_log['PatientFirstName']
-
-results = {}
-columns = ['PatientFirstName'] + [pw[0] for pw in pathways]
-
-print(f'About to process {len(patients)} patients, this may take a while')
-for patient in patients:
-    results[patient] = {}
-    patient_data = mutations_data[
-        (mutations_data['PatientFirstName'] == patient)
-        & (mutations_data['Technology'] == 'NGS Q3')
-        # We only care about variants and pathogenic mutations
-        & (mutations_data['TestResult'].isin(['variantdetected', 'Mutated, Pathogenic']))
-    ]
-
-    for pw in pathways:
-        pw_genes = get_genes(pw[1])
-        pathway_mutations = patient_data[patient_data['Biomarker'].isin(pw_genes)]
-        if(pathway_mutations.empty):
-           results[patient][pw[0]] = np.float64(0.0)
-           continue
-
-        perc_mutation = pathway_mutations.groupby(['Biomarker']).max()['NGS_PercentMutated'].sum() / len(pw_genes)
-        results[patient][pw[0]] = perc_mutation
-
-final = pandas.DataFrame.from_dict(results, orient='index')
 out = pandas.ExcelWriter('TRIBE2_avgs.xlsx', engine='openpyxl')
-final.describe().to_excel(out, 'Summary')
-final.to_excel(out, 'Average mutations')
+
+final = parallel_process_patients(patients_log[patients_log['arm'] == 0]['PatientFirstName'])
+final.describe().to_excel(out, 'Summary (arm 0)')
+final.to_excel(out, 'Average mutations (arm 0)')
+
+final = parallel_process_patients(patients_log[patients_log['arm'] == 1]['PatientFirstName'])
+final.describe().to_excel(out, 'Summary (arm 1)')
+final.to_excel(out, 'Average mutations (arm 1)')
+
 out.save()
 
