@@ -56,7 +56,7 @@ def parallel_process_patients(patients):
         res.append(_process_patients_chunk(chunk))
 
     results = reduce(lambda a, b: {**a, **(b.result())}, res, {})
-    return pandas.DataFrame.from_dict(results, orient='index')
+    return pandas.DataFrame.from_dict(results, orient='index').rename_axis('PatientFirstName').reset_index()
 
 logging.basicConfig(level=logging.DEBUG, filename='pathway_parser.log')
 
@@ -64,21 +64,26 @@ pathways = []
 for pw in os.listdir('./pathways'):
     pathway = parse_pathway('./pathways/' + pw)
     pathways.append(pathway)
+pathways.sort()
 
 patients_log = pandas.read_csv('TRIBE2_db.csv')
 print('Patients list ready')
 mutations_data = pandas.read_csv('TRIBE2_seq_res.csv')
 print('Sequencing results ready')
 
+columns = ['PatientFirstName'] + [pw[0] for pw in pathways]
+
 out = pandas.ExcelWriter('TRIBE2_avgs.xlsx', engine='openpyxl')
 
 final = parallel_process_patients(patients_log[patients_log['arm'] == 0]['PatientFirstName'])
 final.describe().to_excel(out, 'Summary (arm 0)')
-final.to_excel(out, 'Average mutations (arm 0)')
+df = final.join(patients_log.set_index('PatientFirstName'), on='PatientFirstName')
+df.to_excel(out, 'Average mutations (arm 0)', index=False)
 
 final = parallel_process_patients(patients_log[patients_log['arm'] == 1]['PatientFirstName'])
 final.describe().to_excel(out, 'Summary (arm 1)')
-final.to_excel(out, 'Average mutations (arm 1)')
+df = final.join(patients_log.set_index('PatientFirstName'), on='PatientFirstName')
+df.to_excel(out, 'Average mutations (arm 1)', index=False)
 
 out.save()
 
