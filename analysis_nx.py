@@ -16,7 +16,6 @@ def calculate_patient_mutations_with_f(pid, seq_data, pathways, f):
 
     results = {}
     for pw in pathways:
-        pw_genes = pw[1].nodes(data=True)
         pw_names = nx.get_node_attributes(pw[1], 'label')
         pathway_mutations = patient_data[patient_data['Biomarker'].isin(pw_names.values())]
         if(pathway_mutations.empty):
