@@ -2,7 +2,6 @@
 from pathways import *
 import pandas
 import numpy as np
-from joblib import Parallel, delayed
 import multiprocessing
 from pebble import concurrent
 from functools import reduce
@@ -45,7 +44,7 @@ def process_patients(patients):
     for patient in patients:
         results[patient] = calculate_patient_mutations(patient, mutations_data, pathways)
 
-    return pandas.DataFrame.from_dict(results, orient='index')
+    return pandas.DataFrame.from_dict(results, orient='index').rename_axis('PatientFirstName').reset_index()
 
 def parallel_process_patients(patients):
     num_cores = multiprocessing.cpu_count()
@@ -58,8 +57,6 @@ def parallel_process_patients(patients):
     results = reduce(lambda a, b: {**a, **(b.result())}, res, {})
     return pandas.DataFrame.from_dict(results, orient='index').rename_axis('PatientFirstName').reset_index()
 
-logging.basicConfig(level=logging.DEBUG, filename='pathway_parser.log')
-
 pathways = []
 for pw in os.listdir('./pathways'):
     pathway = parse_pathway('./pathways/' + pw)
@@ -67,9 +64,7 @@ for pw in os.listdir('./pathways'):
 pathways.sort()
 
 patients_log = pandas.read_csv('TRIBE2_db.csv')
-print('Patients list ready')
 mutations_data = pandas.read_csv('TRIBE2_seq_res.csv')
-print('Sequencing results ready')
 
 columns = ['PatientFirstName'] + [pw[0] for pw in pathways]
 
