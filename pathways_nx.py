@@ -3,7 +3,7 @@ import logging as log
 from collections import namedtuple
 
 AliasItem = namedtuple('AliasItem', ['parent', 'genes'])
-GeneElem = namedtuple('GeneElem', ['name', 'id'])
+GeneElem = namedtuple('GeneElem', ['name', 'id', 'parent'])
 
 def __make_node_aliases(data):
     '''Alias a genes ID to their families' in order to build edges between them'''
@@ -17,7 +17,7 @@ def __make_node_aliases(data):
     elems = [tokens for tokens in data if tokens[2] == "GENE"]
     for tokens in elems:
         # Add gene to its parent
-        famcom[tokens[3]].genes.append(GeneElem(tokens[0], tokens[1]))
+        famcom[tokens[3]].genes.append(GeneElem(tokens[0], tokens[1], tokens[3]))
     
     return famcom
 
@@ -47,7 +47,7 @@ def pathway_to_nx(path: str):
 
             # In the first pass, add top-level nodes by id; store their name for convenience
             if toks[3] == "-1" and toks[2] == "GENE":
-                g.add_node(toks[1], label=toks[0])
+                g.add_node(toks[1], label=toks[0], famcomw=1)
                 log.debug(f"Node added: {toks[0]}, {toks[1]}")
             else:
                 stash.append(toks)
@@ -60,8 +60,16 @@ def pathway_to_nx(path: str):
         for item in aliases:
             to_add = [g for g in aliases[item].genes if not g.id in aliases]
             for gene in to_add:
-                g.add_node(gene.id, label=gene.name)
-                log.debug(f"Node added: {gene.name}, {gene.id}")
+                parent = aliases[gene.parent]
+                famcomsize = len(parent.genes)
+                # Take into account the size of all the ancestor containers
+                # e.g.: if gene A is in a complex of size 2 inside of a complex of size 3,
+                # it should have a final weight of 1/6
+                while(parent.parent != "-1"):
+                    parent *= parent.parent
+                    famcomsize = len(parent.genes)
+                g.add_node(gene.id, label=gene.name, famcomw=(famcomsize == 0 ? 1 : 1/famcomsize))
+                log.debug(f"Node added: {gene.name}, {gene.id}, 1/{famcomsize}")
 
         # Hit an empty line, edge definitions should follow after the csv header
         pwfile.readline()
