@@ -111,7 +111,7 @@ def pathway_to_nx(path: str):
                         continue
                     g.add_edge(source, target, label=toks[3])
 
-            log.debug(f"Edge added: {source_nodes}->{target_nodes}")
+            log.debug(f"Edge added: {source_nodes}-{toks[3]}->{target_nodes}")
 
             cur_str = pwfile.readline()
 
