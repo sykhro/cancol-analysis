@@ -33,17 +33,9 @@ def calculate_patient_mutations_with_f(pid, seq_data, pathways, f, factor_famcom
 
     return results
 
-def process_patients_with_f_fc(patients, f, pathways, mutations_data):
+def process_patients_with_f(patients, f, pathways, mutations_data, complexes=False):
     results = {}
     for patient in patients:
-        results[patient] = calculate_patient_mutations_with_f(patient, mutations_data, pathways, f, True)
-
-    return pandas.DataFrame.from_dict(results, orient='index').rename_axis('PatientFirstName').reset_index()
-
-
-def process_patients_with_f(patients, f, pathways, mutations_data):
-    results = {}
-    for patient in patients:
-        results[patient] = calculate_patient_mutations_with_f(patient, mutations_data, pathways, f)
+        results[patient] = calculate_patient_mutations_with_f(patient, mutations_data, pathways, f, complexes)
 
     return pandas.DataFrame.from_dict(results, orient='index').rename_axis('PatientFirstName').reset_index()
