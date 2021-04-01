@@ -25,7 +25,7 @@ def calculate_patient_mutations_with_f(pid, seq_data, pathways, f, factor_famcom
         
         weights = f(pw[1])
         # We have them stored by ID, need them by biomarker name
-        weights = {pw_names[k]: weights[k] * (factor_famcom ? pw_famcom[k] : 1) for k, v in pw_names.items()}
+        weights = {pw_names[k]: weights[k] * (pw_famcom[k] if factor_famcom else 1) for k, v in pw_names.items()}
         weights = pandas.Series(weights)
         patient_mutations = pathway_mutations.groupby(['Biomarker']).max()['NGS_PercentMutated']
         perc_mutation = weights.mul(patient_mutations, fill_value=np.float64(0.0)).sum() / weights.sum()

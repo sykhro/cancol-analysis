@@ -66,9 +66,9 @@ def pathway_to_nx(path: str):
                 # e.g.: if gene A is in a complex of size 2 inside of a complex of size 3,
                 # it should have a final weight of 1/6
                 while(parent.parent != "-1"):
-                    parent *= parent.parent
-                    famcomsize = len(parent.genes)
-                g.add_node(gene.id, label=gene.name, famcomw=(famcomsize == 0 ? 1 : 1/famcomsize))
+                    parent = parent.parent
+                    famcomsize *= len(parent.genes)
+                g.add_node(gene.id, label=gene.name, famcomw=(1 if famcomsize == 0 else 1/famcomsize))
                 log.debug(f"Node added: {gene.name}, {gene.id}, 1/{famcomsize}")
 
         # Hit an empty line, edge definitions should follow after the csv header
