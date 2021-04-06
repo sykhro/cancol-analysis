@@ -1,28 +1,66 @@
 import networkx as nx
 import logging as log
+import pandas as pd
 from collections import namedtuple
 
-AliasItem = namedtuple('AliasItem', ['parent', 'genes'])
-GeneElem = namedtuple('GeneElem', ['name', 'id', 'parent'])
+AliasItem = namedtuple("AliasItem", ["parent", "genes"])
+GeneElem = namedtuple("GeneElem", ["name", "id", "parent"])
 
-def __make_node_aliases(data):
-    '''Alias a genes ID to their families' in order to build edges between them'''
+
+class Pathway:
+    def __init__(self, name, graph):
+        self.name = name
+        self.graph = graph
+        self.measures = {}
+
+    def calculate_measure(self, function, with_complexes=False):
+        """Returns a series with weights for a specific function. Indexed by biomarker (*not* ID)"""
+        # Cache results
+        if function in self.measures and with_complexes in self.measures[function]:
+            return self.measures[function][with_complexes]
+
+        gene_names = nx.get_node_attributes(self.graph, "label")
+        weights = function(self.graph)
+        # Index by biomarker
+        weights = {gene_names[k]: weights[k] for k, _ in weights.items()}
+
+        # Separate paths as optimization
+        self.measures[function] = {}
+        if not with_complexes:
+            self.measures[function][with_complexes] = pd.Series(weights)
+            return self.measures[function][with_complexes]
+        else:
+            gene_weights = nx.get_node_attributes(self.graph, "famcomw")
+            self.measures[function][with_complexes] = pd.Series(weights).mul(
+                pd.Series(
+                    {gene_names[k]: gene_weights[k] for k, v in gene_weights.items()}
+                )
+            )
+            return self.measures[function][with_complexes]
+
+    def get_genes(self):
+        return nx.get_node_attributes(self.graph, "label").values()
+
+
+def __make_node_aliases(data: list[str]):
+    """Alias a genes ID to their families' in order to build edges between them"""
     famcom = {}
     elems = [tokens for tokens in data if tokens[2] in ["FAMILY", "COMPLEX"]]
     # Add all (gene) containers first
     for tokens in elems:
         famcom[tokens[1]] = AliasItem(tokens[3], [])
-        
+
     log.debug(famcom)
     elems = [tokens for tokens in data if tokens[2] == "GENE"]
     for tokens in elems:
         # Add gene to its parent
         famcom[tokens[3]].genes.append(GeneElem(tokens[0], tokens[1], tokens[3]))
-    
+
     return famcom
 
-def pathway_to_nx(path: str):
-    '''Parses a pathwaymapper file, returning a NetworkX graph'''
+
+def pathway_to_nx(path: str) -> Pathway:
+    """Parses a pathwaymapper file, returning a NetworkX graph"""
     g = nx.DiGraph()
 
     with open(path) as pwfile:
@@ -65,10 +103,14 @@ def pathway_to_nx(path: str):
                 # Take into account the size of all the ancestor containers
                 # e.g.: if gene A is in a complex of size 2 inside of a complex of size 3,
                 # it should have a final weight of 1/6
-                while(parent.parent != "-1"):
+                while parent.parent != "-1":
                     parent = aliases[parent.parent]
                     famcomsize *= len(parent.genes)
-                g.add_node(gene.id, label=gene.name, famcomw=(1 if famcomsize == 0 else 1/famcomsize))
+                g.add_node(
+                    gene.id,
+                    label=gene.name,
+                    famcomw=(1 if famcomsize == 0 else 1 / famcomsize),
+                )
                 log.debug(f"Node added: {gene.name}, {gene.id}, 1/{famcomsize}")
 
         # Hit an empty line, edge definitions should follow after the csv header
@@ -104,7 +146,7 @@ def pathway_to_nx(path: str):
             for source in source_nodes:
                 if source not in g:
                     continue
-                
+
                 for target in target_nodes:
                     # Don't link to processes for now
                     if target not in g:
@@ -115,7 +157,4 @@ def pathway_to_nx(path: str):
 
             cur_str = pwfile.readline()
 
-    return (title, g)
-
-#log.basicConfig(level=log.DEBUG)
-#pathway_to_nx('pathways/WNT.txt')
+    return Pathway(title, g)
