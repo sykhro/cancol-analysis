@@ -3,18 +3,22 @@ from enum import Enum
 import os
 import logging
 
-Node = namedtuple('Node', ['name', 'parent', 'children', 'type'])
+Node = namedtuple("Node", ["name", "parent", "children", "type"])
+
 
 class PType(Enum):
-    '''Type of elements that can be found in a pathway'''
+    """Type of elements that can be found in a pathway"""
+
     GENE = 0
     FAMILY = 1
     COMPLEX = 2
     PROCESS = 3
 
+
 def __construct_node(toks):
     parent = None if toks[3] == "-1" else toks[3]
     return Node(toks[0], parent, {}, PType[toks[2]])
+
 
 def __attempt_add_child(g, parent, nid, node):
     if parent in g:
@@ -28,6 +32,7 @@ def __attempt_add_child(g, parent, nid, node):
 
     return False
 
+
 def __process_stash(g, stash):
     # This is not particularly efficient due to the stash copy..
     for toks in stash[:]:
@@ -38,6 +43,7 @@ def __process_stash(g, stash):
         else:
             if __attempt_add_child(g, toks[3], toks[1], __construct_node(toks)):
                 stash.remove(toks)
+
 
 def __find_node(g, nid):
     if not g:
@@ -53,14 +59,15 @@ def __find_node(g, nid):
     for node in g:
         logging.debug(f"Now looking at {node}")
         res = __find_node(g[node][0].children, nid)
-        if(res):
+        if res:
             return res
 
     return {}
 
+
 # Transforms a pathwaymapper file into a graph
 def parse_pathway(path: str):
-    '''Parses a pathwaymapper file, returning a tree-like graph structure'''
+    """Parses a pathwaymapper file, returning a tree-like graph structure"""
     g = {}
 
     with open(path) as pwfile:
@@ -109,12 +116,14 @@ def parse_pathway(path: str):
 
     return (title, g)
 
+
 def grouped_genes_size(pathway):
-    '''Returns the number of top-level pathway elements'''
+    """Returns the number of top-level pathway elements"""
     return sum(node[0].type != PType.PROCESS for node in pathway.values())
 
+
 def get_genes(pathway):
-    ''' Returns all the genes of a pathway (excluding families, complexes, processes)'''
+    """ Returns all the genes of a pathway (excluding families, complexes, processes)"""
     genes = set()
     for node in pathway.values():
         if node[0].type == PType.GENE:
@@ -122,4 +131,3 @@ def get_genes(pathway):
         genes.update(get_genes(node[0].children))
 
     return genes
-
