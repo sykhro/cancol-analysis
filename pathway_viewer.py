@@ -24,7 +24,7 @@ def percentage_to_rgb(percentage, base_color=0xFFFFFF, target_color=0xFF0000):
     h = lerp(start.hue(), end.hue(), percentage / 100)
     s = lerp(start.saturation(), end.saturation(), percentage / 100)
     v = lerp(start.value(), end.value(), percentage / 100)
-    rgb = QColor.fromHsv(h, s, v).getRgb()
+    rgb = QColor.fromHsv(int(h), int(s), int(v)).getRgb()
 
     return '#%02x%02x%02x' % (rgb[0], rgb[1], rgb[2])
 
@@ -45,8 +45,9 @@ def make_coexpression_matrix(expression_db, gene_db):
 
 
 class PathwayView(QWebEngineView):
-    def __init__(self, pathway):
+    def __init__(self, pathway, mutations):
         super().__init__()
+        self.mutations = mutations
         if pathway:
             self.active_pathway = pathway
             self.setContent(
@@ -86,7 +87,7 @@ class Viewer(QWidget):
         self.thrs_box.setMaximum(1.0)
         self.thrs_box.setSingleStep(0.05)
         refresh_button = QPushButton("Refresh")
-        refresh_button.clicked.connect(self.make_graph)
+        refresh_button.clicked.connect(self.refresh_view)
         thrs_label = QLabel("Link threshold")
         thrs_layout.addWidget(thrs_label)
         thrs_layout.addWidget(self.thrs_box)
@@ -150,7 +151,7 @@ class Viewer(QWidget):
         mainlayout = QGridLayout()
         self.tabs = QTabWidget()
         self.tabs.addTab(
-            PathwayView(None),
+            PathwayView(None, []),
             "Baseline".format(
                 self.thrs_box.value() if self.thrs_box.value() != 0 else ""
             ),
@@ -172,28 +173,38 @@ class Viewer(QWidget):
         new_idx = self.patients_dropdown.currentIndex()
 
         if not self.observed_patients.findItems(new_id, Qt.MatchFlag.MatchExactly):
-            thres = self.thrs_box.value()
-            pathway = make_pathway_from_thres(thres, self.ref_coex)
-
             mutations = retrieve_mutations(
                 new_id, self.sequencing_data
             )
-            mutations["NGS_PercentMutated"] = mutations["NGS_PercentMutated"].map(percentage_to_rgb)
-            colors = mutations.set_index("Biomarker").to_dict()["NGS_PercentMutated"]
-            for node in pathway.graph.nodes:
-                pathway.graph.nodes[node]["color"] = "black"
-                if node in colors:
-                    pathway.graph.nodes[node]["fillcolor"] = colors[node]
-                else:
-                    pathway.graph.nodes[node]["fillcolor"] = "#ffffff"
-                pathway.graph.nodes[node]["style"] = "filled"
+            pathway = self.make_annotated_pathway(mutations)
 
-            new_view = PathwayView(pathway)
-
+            new_view = PathwayView(pathway, mutations)
             tab_idx = self.tabs.addTab(new_view, new_id)
             self.tabs.setCurrentIndex(tab_idx)
             self.observed_patients.addItem(new_id)
             self.patients_dropdown.removeItem(new_idx)
+
+    def make_annotated_pathway(self, mutations):
+        thres = self.thrs_box.value()
+        pathway = make_pathway_from_thres(thres, self.ref_coex)
+        muts = mutations.copy()
+
+        colors = {}
+        if "NGS_PercentMutated" in muts:
+            muts["NGS_PercentMutated"] = muts["NGS_PercentMutated"].map(percentage_to_rgb)
+            colors = muts.set_index("Biomarker").to_dict()["NGS_PercentMutated"]
+
+        for node in pathway.graph.nodes:
+            pathway.graph.nodes[node]["color"] = "black"
+            pathway.graph.nodes[node]["style"] = "filled"
+
+            if node in colors:
+                pathway.graph.nodes[node]["fillcolor"] = colors[node]
+            else:
+                pathway.graph.nodes[node]["fillcolor"] = "#ffffff"
+
+        return pathway
+
 
     @pyqtSlot()
     def set_genes_db(self):
@@ -233,12 +244,10 @@ class Viewer(QWidget):
 
         nx.write_gexf(active_pathway.graph, path)
 
-    def make_graph(self):
-        threshold = self.thrs_box.value()
+    def refresh_view(self):
         pw_view = self.tabs.currentWidget()
-        pw_view.active_pathway = make_pathway_from_thres(threshold, self.ref_coex)
-        dot_graph = nx.nx_pydot.to_pydot(pw_view.active_pathway.graph)
-        pw_view.svg_changed(dot_graph.create_svg())
+        pw_view.active_pathway = self.make_annotated_pathway(pw_view.mutations)
+        pw_view.refresh_svg()
 
 
 if __name__ == "__main__":
