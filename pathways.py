@@ -1,7 +1,6 @@
+import logging
 from collections import namedtuple
 from enum import Enum
-import os
-import logging
 
 Node = namedtuple("Node", ["name", "parent", "children", "type"])
 

@@ -1,8 +1,7 @@
-from typing import Tuple
 from enum import Enum
+
 import networkx as nx
-import matplotlib.pyplot as plt
-import pygraphviz as gv
+
 
 # Nodes in a pathway can be genes or clusters of genes
 # Genes inside a cluster are CHILDGENEs so that they can be treated

@@ -1,8 +1,9 @@
-import networkx as nx
 import logging as log
-import pandas as pd
 from collections import namedtuple
 from dataclasses import dataclass, field
+
+import networkx as nx
+import pandas as pd
 
 AliasItem = namedtuple("AliasItem", ["parent", "genes"])
 GeneElem = namedtuple("GeneElem", ["name", "id", "parent"])

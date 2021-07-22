@@ -1,10 +1,9 @@
-#!/usr/bin/python3
-from pathways import *
-import pandas
+#!/usr/bin/env python
+
 import numpy as np
-import multiprocessing
-from pebble import concurrent
-from functools import reduce
+import pandas
+
+from pathways import *
 
 
 def calculate_patient_mutations(pid, seq_data, pathways):
@@ -37,17 +36,6 @@ def calculate_patient_mutations(pid, seq_data, pathways):
     return results
 
 
-@concurrent.thread
-def _process_patients_chunk(patients):
-    results = {}
-    for patient in patients:
-        results[patient] = calculate_patient_mutations(
-            patient, mutations_data, pathways
-        )
-
-    return results
-
-
 def process_patients(patients):
     results = {}
     for patient in patients:
@@ -55,22 +43,6 @@ def process_patients(patients):
             patient, mutations_data, pathways
         )
 
-    return (
-        pandas.DataFrame.from_dict(results, orient="index")
-        .rename_axis("PatientFirstName")
-        .reset_index()
-    )
-
-
-def parallel_process_patients(patients):
-    num_cores = multiprocessing.cpu_count()
-    toprocess = np.array_split(np.array(patients), num_cores)
-
-    res = []
-    for chunk in toprocess:
-        res.append(_process_patients_chunk(chunk))
-
-    results = reduce(lambda a, b: {**a, **(b.result())}, res, {})
     return (
         pandas.DataFrame.from_dict(results, orient="index")
         .rename_axis("PatientFirstName")

@@ -1,11 +1,13 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
+
+import logging as log
+import os
+
+import networkx as nx
+import pandas as pd
 
 import analysis_nx as anx
 import pathways_nx as pnx
-import networkx as nx
-import logging as log
-import pandas as pd
-import os
 
 PATHWAYS_DIRECTORY = "./pathways/"
 log.basicConfig(level=log.INFO)
