@@ -2,19 +2,21 @@ import networkx as nx
 import logging as log
 import pandas as pd
 from collections import namedtuple
+from dataclasses import dataclass, field
 
 AliasItem = namedtuple("AliasItem", ["parent", "genes"])
 GeneElem = namedtuple("GeneElem", ["name", "id", "parent"])
 
 
+@dataclass
 class Pathway:
-    def __init__(self, name, graph):
-        self.name = name
-        self.graph = graph
-        self.measures = {}
+    name: str
+    graph: nx.DiGraph
+    measures: dict = field(default_factory=dict)
 
     def calculate_measure(self, function, with_complexes=False):
-        """Returns a series with weights for a specific function. Indexed by biomarker (*not* ID)"""
+        """Returns a series with weights for a specific function.
+            Indexed by biomarker (*not* ID)"""
         # Cache results
         if function in self.measures and with_complexes in self.measures[function]:
             return self.measures[function][with_complexes]
@@ -43,7 +45,8 @@ class Pathway:
 
 
 def __make_node_aliases(data: list[str]):
-    """Alias a genes ID to their families' in order to build edges between them"""
+    """Alias a genes ID to their families
+        in order to build edges between them"""
     famcom = {}
     elems = [tokens for tokens in data if tokens[2] in ["FAMILY", "COMPLEX"]]
     # Add all (gene) containers first
@@ -83,7 +86,8 @@ def pathway_to_nx(path: str) -> Pathway:
             # We are interested in the first 4 columns:
             # NAME, ID, TYPE, PARENT_ID
 
-            # In the first pass, add top-level nodes by id; store their name for convenience
+            # In the first pass, add top-level nodes by id;
+            # store their name for convenience
             if toks[3] == "-1" and toks[2] == "GENE":
                 g.add_node(toks[1], label=toks[0], famcomw=1)
                 log.debug(f"Node added: {toks[0]}, {toks[1]}")
