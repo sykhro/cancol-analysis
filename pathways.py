@@ -123,7 +123,7 @@ def grouped_genes_size(pathway):
 
 
 def get_genes(pathway):
-    """ Returns all the genes of a pathway (excluding families, complexes, processes)"""
+    """Returns all the genes of a pathway (excluding families, complexes, processes)"""
     genes = set()
     for node in pathway.values():
         if node[0].type == PType.GENE:

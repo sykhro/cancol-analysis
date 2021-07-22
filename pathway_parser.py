@@ -15,10 +15,9 @@ class PathwayElement(Enum):
     CHILDGENE = 5
 
 
-
 # Transforms a pathwaymapper file into a graph
 def pathway_to_graph(path: str):
-    g = nx.Graph() 
+    g = nx.Graph()
 
     with open(path) as pwfile:
         # First line in file is pathway name
@@ -28,7 +27,8 @@ def pathway_to_graph(path: str):
         # Third line is pathway description, ignore for now
         pwfile.readline()
         # Fourth line is empty, fifth line is genes header
-        pwfile.readline(); pwfile.readline()
+        pwfile.readline()
+        pwfile.readline()
 
         # Now parse the genes
         cur_str = pwfile.readline()
@@ -39,7 +39,9 @@ def pathway_to_graph(path: str):
 
             # An edge can connect to more than one vertex because of gene complexes or families,
             # this is modelled with an intermediate node
-            ptype = PathwayElement.CHILDGENE if toks[3] != '-1' else PathwayElement[toks[2]]
+            ptype = (
+                PathwayElement.CHILDGENE if toks[3] != "-1" else PathwayElement[toks[2]]
+            )
             g.add_node(toks[1], label=toks[0], ptype=ptype)
             if ptype == PathwayElement.CHILDGENE:
                 print(toks[0] + " " + toks[1] + " -> " + toks[3])
@@ -59,25 +61,32 @@ def pathway_to_graph(path: str):
 
     return (title, g)
 
+
 # Counts genes, complexes and families
 def total_gene_groups(pathway: nx.Graph) -> int:
     gattrs = nx.get_node_attributes(pathway, "ptype")
-    return sum(value in [PathwayElement.GENE, PathwayElement.FAMILY, PathwayElement.COMPLEX]
-            for value in gattrs.values())
+    return sum(
+        value in [PathwayElement.GENE, PathwayElement.FAMILY, PathwayElement.COMPLEX]
+        for value in gattrs.values()
+    )
+
 
 # Counts all the genes present in the pathway
 def total_genes(pathway: nx.Graph) -> int:
     gattrs = nx.get_node_attributes(pathway, "ptype")
-    return sum(value in [PathwayElement.GENE, PathwayElement.CHILDGENE]
-            for value in gattrs.values())
+    return sum(
+        value in [PathwayElement.GENE, PathwayElement.CHILDGENE]
+        for value in gattrs.values()
+    )
+
 
 def get_gene_names(pathway: nx.Graph):
     return nx.get_node_attributes(pathway, "label").values()
 
+
 res = pathway_to_graph("./pathways/HIPPO.txt")
 output = nx.nx_agraph.to_agraph(res[1])
-output.layout('dot')
-output.draw('test.png')
+output.layout("dot")
+output.draw("test.png")
 
 print("Total genes: " + str(total_gene_groups(res[1])))
-

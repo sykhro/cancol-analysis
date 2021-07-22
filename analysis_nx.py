@@ -8,7 +8,7 @@ from collections import namedtuple
 PathwayConfig = namedtuple("PathwayConfig", ["measure", "hierarchy"])
 
 
-def retrieve_mutations(pid, seq_data): 
+def retrieve_mutations(pid, seq_data):
     patient_data = seq_data[
         (seq_data["PatientFirstName"] == pid)
         & (seq_data["Technology"] == "NGS Q3")
@@ -20,9 +20,11 @@ def retrieve_mutations(pid, seq_data):
 
     return patient_data
 
+
 def util_unweight(g):
     nodes = g.nodes()
     return {node: 1 for node in nodes}
+
 
 def calculate_patient_mutations_with_f(pid, seq_data, pathways, f, factor_famcom=False):
     patient_data = seq_data[

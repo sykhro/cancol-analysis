@@ -16,7 +16,7 @@ class Pathway:
 
     def calculate_measure(self, function, with_complexes=False):
         """Returns a series with weights for a specific function.
-            Indexed by biomarker (*not* ID)"""
+        Indexed by biomarker (*not* ID)"""
         # Cache results
         if function in self.measures and with_complexes in self.measures[function]:
             return self.measures[function][with_complexes]
@@ -46,7 +46,7 @@ class Pathway:
 
 def __make_node_aliases(data: list[str]):
     """Alias a genes ID to their families
-        in order to build edges between them"""
+    in order to build edges between them"""
     famcom = {}
     elems = [tokens for tokens in data if tokens[2] in ["FAMILY", "COMPLEX"]]
     # Add all (gene) containers first

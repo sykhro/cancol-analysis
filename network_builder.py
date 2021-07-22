@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from dataclasses import dataclass, field
 
+
 @dataclass
 class Pathway:
     name: str
@@ -15,7 +16,7 @@ class Pathway:
 
     def calculate_measure(self, function, with_complexes=False):
         """Returns a series with weights for a specific function.
-            Indexed by biomarker (*not* ID)"""
+        Indexed by biomarker (*not* ID)"""
         # Cache results
         if function in self.measures and with_complexes in self.measures[function]:
             return self.measures[function][with_complexes]
@@ -45,7 +46,7 @@ class Pathway:
 
 def make_pathway_from_thres(threshold, coexpression):
     coexpression = coexpression.applymap(lambda x: 1 if abs(x) > threshold else 0)
-    np.fill_diagonal(coexpression.values,0)
+    np.fill_diagonal(coexpression.values, 0)
     graph = nx.Graph()
     for gene in coexpression:
         for other in coexpression.columns:
@@ -56,5 +57,5 @@ def make_pathway_from_thres(threshold, coexpression):
                     graph.add_node(other, label=other)
 
                 graph.add_edge(gene, other)
-    
+
     return Pathway("GPL570-{}".format(threshold), graph)
