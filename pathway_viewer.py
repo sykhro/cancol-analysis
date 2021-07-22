@@ -4,13 +4,29 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtSvg import *
 from PyQt5.QtCore import *
 from PyQt5.QtWebEngineWidgets import *
+from PyQt5.QtGui import *
 from network_builder import *
+from analysis_nx import *
 import pandas as pd
 import networkx as nx
 import sys
 
 DEFAULT_EXP = "GSE40367-stripped.txt"
 DEFAULT_GENES = "GPL570-stripped.txt"
+
+def lerp(a, b, t):
+    return a * (1 - t) + b * t
+
+def percentage_to_rgb(percentage, base_color=0xFFFFFF, target_color=0xFF0000):
+    start = QColor(base_color).toHsv()
+    end = QColor(target_color).toHsv()
+
+    h = lerp(start.hue(), end.hue(), percentage / 100)
+    s = lerp(start.saturation(), end.saturation(), percentage / 100)
+    v = lerp(start.value(), end.value(), percentage / 100)
+    rgb = QColor.fromHsv(h, s, v).getRgb()
+
+    return '#%02x%02x%02x' % (rgb[0], rgb[1], rgb[2])
 
 
 def make_coexpression_matrix(expression_db, gene_db):
@@ -33,12 +49,21 @@ class PathwayView(QWebEngineView):
         super().__init__()
         if pathway:
             self.active_pathway = pathway
-            self.setContent(nx.nx_pydot.to_pydot(self.active_pathway.graph).create_svg(), "image/svg+xml")
+            self.setContent(
+                nx.nx_pydot.to_pydot(self.active_pathway.graph).create_svg(),
+                "image/svg+xml",
+            )
         else:
             self.active_pathway = None
             self.setHtml(
                 """<p style='font-family: sans-serif'>No data loaded.<br>Change the threshold level to trigger graph recreation.</p>"""
             )
+
+    def refresh_svg(self):
+        self.setContent(
+                nx.nx_pydot.to_pydot(self.active_pathway.graph).create_svg(),
+                "image/svg+xml",
+          )
 
     def svg_changed(self, svg_data):
         self.setContent(svg_data, "image/svg+xml")
@@ -50,6 +75,7 @@ class Viewer(QWidget):
 
         self.exp_path = DEFAULT_EXP
         self.genes_path = DEFAULT_GENES
+        self.sequencing_data = pd.read_csv("TRIBE2_seq_res.csv")
         self.ref_coex = make_coexpression_matrix(self.exp_path, self.genes_path)
 
         # Settings -----------------------------------------------------------------------------
@@ -59,7 +85,8 @@ class Viewer(QWidget):
         self.thrs_box.setMinimum(0)
         self.thrs_box.setMaximum(1.0)
         self.thrs_box.setSingleStep(0.05)
-        self.thrs_box.valueChanged.connect(self.make_graph)
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.make_graph)
         thrs_label = QLabel("Link threshold")
         thrs_layout.addWidget(thrs_label)
         thrs_layout.addWidget(self.thrs_box)
@@ -79,29 +106,29 @@ class Viewer(QWidget):
         settings_layout = QGridLayout()
         settings_layout.addWidget(thrs_label, 0, 0)
         settings_layout.addWidget(self.thrs_box, 0, 1)
+        settings_layout.addWidget(refresh_button, 0, 2)
         warn = QLabel(
             "Warning! Graph generation for low thresholds may take a long time"
         )
-        warn.setContentsMargins(0, 0, 0, 0)
-        settings_layout.addWidget(warn, 1, 0, 0, -1, Qt.AlignmentFlag.AlignTop)
+        settings_layout.addWidget(warn, 1, 0, 1, -1, Qt.AlignmentFlag.AlignTop)
         settings_layout.addWidget(genes_selection, 2, 0)
-        settings_layout.addWidget(genes_path, 2, 1)
+        settings_layout.addWidget(genes_path, 2, 1, 1, 2)
         settings_layout.addWidget(expression_selection, 3, 0)
-        settings_layout.addWidget(expression_path, 3, 1)
+        settings_layout.addWidget(expression_path, 3, 1, 1, 2)
         settings_group.setLayout(settings_layout)
 
         # Patient selection --------------------------------------------------------------------
         patients_group = QGroupBox("Patient selection")
         patients_layout = QGridLayout()
         patients_layout.addWidget(QLabel("Patient ID"), 0, 0)
-        
+
         self.patients_dropdown = QComboBox()
         self.patients_dropdown.setEditable(True)
         self.init_patients_list()
         self.add_patient_button = QPushButton("Add patient")
         self.add_patient_button.clicked.connect(self.add_patient)
         self.observed_patients = QListWidget()
-        
+
         patients_layout.addWidget(self.patients_dropdown, 0, 1)
         patients_layout.addWidget(self.add_patient_button, 1, 0, 1, -1)
         patients_layout.addWidget(self.observed_patients, 2, 0, 1, -1)
@@ -124,7 +151,9 @@ class Viewer(QWidget):
         self.tabs = QTabWidget()
         self.tabs.addTab(
             PathwayView(None),
-            "Baseline {}".format(self.thrs_box.value() if self.thrs_box.value() != 0 else ""),
+            "Baseline".format(
+                self.thrs_box.value() if self.thrs_box.value() != 0 else ""
+            ),
         )
         mainlayout.addWidget(self.tabs, 0, 0, -1, 4)
         mainlayout.addWidget(right_pane, 0, 4, 1, 1)
@@ -139,11 +168,30 @@ class Viewer(QWidget):
         self.patients_dropdown.setModel(model)
 
     def add_patient(self):
-        new_id, new_idx = [self.patients_dropdown.currentText(), self.patients_dropdown.currentIndex()]
+        new_id = self.patients_dropdown.currentText()
+        new_idx = self.patients_dropdown.currentIndex()
+
         if not self.observed_patients.findItems(new_id, Qt.MatchFlag.MatchExactly):
-            pathway = make_pathway_from_thres(self.thrs_box.value(), self.ref_coex)
+            thres = self.thrs_box.value()
+            pathway = make_pathway_from_thres(thres, self.ref_coex)
+
+            mutations = retrieve_mutations(
+                new_id, self.sequencing_data
+            )
+            mutations["NGS_PercentMutated"] = mutations["NGS_PercentMutated"].map(percentage_to_rgb)
+            colors = mutations.set_index("Biomarker").to_dict()["NGS_PercentMutated"]
+            for node in pathway.graph.nodes:
+                pathway.graph.nodes[node]["color"] = "black"
+                if node in colors:
+                    pathway.graph.nodes[node]["fillcolor"] = colors[node]
+                else:
+                    pathway.graph.nodes[node]["fillcolor"] = "#ffffff"
+                pathway.graph.nodes[node]["style"] = "filled"
+
             new_view = PathwayView(pathway)
-            self.tabs.addTab(new_view, pathway.name)
+
+            tab_idx = self.tabs.addTab(new_view, new_id)
+            self.tabs.setCurrentIndex(tab_idx)
             self.observed_patients.addItem(new_id)
             self.patients_dropdown.removeItem(new_idx)
 
@@ -175,14 +223,18 @@ class Viewer(QWidget):
             return
 
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export graph information", "", "GEXF graph representation (*.gexf)"
+            self,
+            "Export graph information",
+            self.tabs.tabText(self.tabs.currentIndex()),
+            "GEXF graph representation (*.gexf)",
         )
         if not path:
             return
 
         nx.write_gexf(active_pathway.graph, path)
 
-    def make_graph(self, threshold):
+    def make_graph(self):
+        threshold = self.thrs_box.value()
         pw_view = self.tabs.currentWidget()
         pw_view.active_pathway = make_pathway_from_thres(threshold, self.ref_coex)
         dot_graph = nx.nx_pydot.to_pydot(pw_view.active_pathway.graph)
