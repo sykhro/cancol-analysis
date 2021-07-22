@@ -1,21 +1,25 @@
 #!/usr/bin/env python
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtSvg import *
-from PyQt5.QtCore import *
-from PyQt5.QtWebEngineWidgets import *
-from PyQt5.QtGui import *
-from network_builder import *
-from analysis_nx import *
-import pandas as pd
-import networkx as nx
 import sys
+
+import networkx as nx
+import pandas as pd
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtSvg import *
+from PyQt5.QtWebEngineWidgets import *
+from PyQt5.QtWidgets import *
+
+from analysis_nx import *
+from network_builder import *
 
 DEFAULT_EXP = "GSE40367-stripped.txt"
 DEFAULT_GENES = "GPL570-stripped.txt"
 
+
 def lerp(a, b, t):
     return a * (1 - t) + b * t
+
 
 def percentage_to_rgb(percentage, base_color=0xFFFFFF, target_color=0xFF0000):
     start = QColor(base_color).toHsv()
@@ -26,7 +30,7 @@ def percentage_to_rgb(percentage, base_color=0xFFFFFF, target_color=0xFF0000):
     v = lerp(start.value(), end.value(), percentage / 100)
     rgb = QColor.fromHsv(int(h), int(s), int(v)).getRgb()
 
-    return '#%02x%02x%02x' % (rgb[0], rgb[1], rgb[2])
+    return "#%02x%02x%02x" % (rgb[0], rgb[1], rgb[2])
 
 
 def make_coexpression_matrix(expression_db, gene_db):
@@ -57,14 +61,14 @@ class PathwayView(QWebEngineView):
         else:
             self.active_pathway = None
             self.setHtml(
-                """<p style='font-family: sans-serif'>No data loaded.<br>Change the threshold level to trigger graph recreation.</p>"""
+                """<p style='font-family: sans-serif'>No data loaded.<br>Set a threshold and click 'Refresh' to trigger graph recreation.</p>"""
             )
 
     def refresh_svg(self):
         self.setContent(
-                nx.nx_pydot.to_pydot(self.active_pathway.graph).create_svg(),
-                "image/svg+xml",
-          )
+            nx.nx_pydot.to_pydot(self.active_pathway.graph).create_svg(),
+            "image/svg+xml",
+        )
 
     def svg_changed(self, svg_data):
         self.setContent(svg_data, "image/svg+xml")
@@ -86,6 +90,7 @@ class Viewer(QWidget):
         self.thrs_box.setMinimum(0)
         self.thrs_box.setMaximum(1.0)
         self.thrs_box.setSingleStep(0.05)
+        self.thrs_box.setValue(0.6)
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_view)
         thrs_label = QLabel("Link threshold")
@@ -126,13 +131,16 @@ class Viewer(QWidget):
         self.patients_dropdown = QComboBox()
         self.patients_dropdown.setEditable(True)
         self.init_patients_list()
-        self.add_patient_button = QPushButton("Add patient")
+        self.add_patient_button = QPushButton("Add patient ↓")
         self.add_patient_button.clicked.connect(self.add_patient)
+        self.remove_patient_button = QPushButton("Remove patient ↑")
+        self.remove_patient_button.clicked.connect(self.remove_patient)
         self.observed_patients = QListWidget()
 
         patients_layout.addWidget(self.patients_dropdown, 0, 1)
-        patients_layout.addWidget(self.add_patient_button, 1, 0, 1, -1)
-        patients_layout.addWidget(self.observed_patients, 2, 0, 1, -1)
+        patients_layout.addWidget(self.add_patient_button, 1, 0)
+        patients_layout.addWidget(self.remove_patient_button, 1, 1)
+        patients_layout.addWidget(self.observed_patients, 3, 0, 1, -1)
         patients_group.setLayout(patients_layout)
 
         self.setWindowTitle("Pathway viewer")
@@ -150,12 +158,14 @@ class Viewer(QWidget):
 
         mainlayout = QGridLayout()
         self.tabs = QTabWidget()
-        self.tabs.addTab(
+        self.tabs.tabCloseRequested.connect(lambda index: self.tabs.removeTab(index))
+        baseline_idx = self.tabs.addTab(
             PathwayView(None, []),
             "Baseline".format(
                 self.thrs_box.value() if self.thrs_box.value() != 0 else ""
             ),
         )
+        self.tab_indices = {"Baseline": baseline_idx}
         mainlayout.addWidget(self.tabs, 0, 0, -1, 4)
         mainlayout.addWidget(right_pane, 0, 4, 1, 1)
 
@@ -168,21 +178,30 @@ class Viewer(QWidget):
         model = QStringListModel(patients_list)
         self.patients_dropdown.setModel(model)
 
+    def remove_patient(self):
+        idx_remove = self.observed_patients.currentIndex()
+        to_close = self.observed_patients.itemAt(
+            idx_remove.column(), idx_remove.row()
+        ).data(Qt.DisplayRole)
+        self.observed_patients.takeItem(idx_remove.row())
+
+        self.tabs.removeTab(self.tab_indices[to_close])
+        del self.tab_indices[to_close]
+
     def add_patient(self):
         new_id = self.patients_dropdown.currentText()
         new_idx = self.patients_dropdown.currentIndex()
 
         if not self.observed_patients.findItems(new_id, Qt.MatchFlag.MatchExactly):
-            mutations = retrieve_mutations(
-                new_id, self.sequencing_data
-            )
+            mutations = retrieve_mutations(new_id, self.sequencing_data)
             pathway = self.make_annotated_pathway(mutations)
 
             new_view = PathwayView(pathway, mutations)
             tab_idx = self.tabs.addTab(new_view, new_id)
+            self.tab_indices[new_id] = tab_idx
             self.tabs.setCurrentIndex(tab_idx)
             self.observed_patients.addItem(new_id)
-            self.patients_dropdown.removeItem(new_idx)
+            self.patients_dropdown.setCurrentIndex(new_idx + 1)
 
     def make_annotated_pathway(self, mutations):
         thres = self.thrs_box.value()
@@ -191,7 +210,9 @@ class Viewer(QWidget):
 
         colors = {}
         if "NGS_PercentMutated" in muts:
-            muts["NGS_PercentMutated"] = muts["NGS_PercentMutated"].map(percentage_to_rgb)
+            muts["NGS_PercentMutated"] = muts["NGS_PercentMutated"].map(
+                percentage_to_rgb
+            )
             colors = muts.set_index("Biomarker").to_dict()["NGS_PercentMutated"]
 
         for node in pathway.graph.nodes:
@@ -204,7 +225,6 @@ class Viewer(QWidget):
                 pathway.graph.nodes[node]["fillcolor"] = "#ffffff"
 
         return pathway
-
 
     @pyqtSlot()
     def set_genes_db(self):
