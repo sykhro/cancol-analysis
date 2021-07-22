@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import os
+
 import numpy as np
 import pandas
 
@@ -50,31 +52,28 @@ def process_patients(patients):
     )
 
 
-pathways = []
-for pw in os.listdir("./pathways"):
-    pathway = parse_pathway("./pathways/" + pw)
-    pathways.append(pathway)
-pathways.sort()
+if __name__ == "__main__":
+    pathways = []
+    for pw in os.listdir("./pathways"):
+        pathway = parse_pathway("./pathways/" + pw)
+        pathways.append(pathway)
+    pathways.sort()
 
-patients_log = pandas.read_csv("TRIBE2_db.csv")
-mutations_data = pandas.read_csv("TRIBE2_seq_res.csv")
+    patients_log = pandas.read_csv("TRIBE2_db.csv")
+    mutations_data = pandas.read_csv("TRIBE2_seq_res.csv")
 
-columns = ["PatientFirstName"] + [pw[0] for pw in pathways]
+    columns = ["PatientFirstName"] + [pw[0] for pw in pathways]
 
-out = pandas.ExcelWriter("TRIBE2_avgs.xlsx", engine="openpyxl")
+    out = pandas.ExcelWriter("TRIBE2_avgs.xlsx", engine="openpyxl")
 
-final = parallel_process_patients(
-    patients_log[patients_log["arm"] == 0]["PatientFirstName"]
-)
-final.describe().to_excel(out, "Summary (arm 0)")
-df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
-df.to_excel(out, "Average mutations (arm 0)", index=False)
+    final = process_patients(patients_log[patients_log["arm"] == 0]["PatientFirstName"])
+    final.describe().to_excel(out, "Summary (arm 0)")
+    df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
+    df.to_excel(out, "Average mutations (arm 0)", index=False)
 
-final = parallel_process_patients(
-    patients_log[patients_log["arm"] == 1]["PatientFirstName"]
-)
-final.describe().to_excel(out, "Summary (arm 1)")
-df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
-df.to_excel(out, "Average mutations (arm 1)", index=False)
+    final = process_patients(patients_log[patients_log["arm"] == 1]["PatientFirstName"])
+    final.describe().to_excel(out, "Summary (arm 1)")
+    df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
+    df.to_excel(out, "Average mutations (arm 1)", index=False)
 
-out.save()
+    out.save()

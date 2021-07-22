@@ -1,7 +1,5 @@
-import networkx as nx
 import numpy as np
 import pandas
-import logging as log
 import analysis as lan
 from collections import namedtuple
 

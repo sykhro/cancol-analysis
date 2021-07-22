@@ -4,14 +4,28 @@ import sys
 
 import networkx as nx
 import pandas as pd
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtSvg import *
-from PyQt5.QtWebEngineWidgets import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QStringListModel, Qt, pyqtSlot
+from PyQt5.QtGui import QColor
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from analysis_nx import *
-from network_builder import *
+from analysis_nx import retrieve_mutations
+from network_builder import Pathway, make_pathway_from_thres
 
 DEFAULT_EXP = "GSE40367-stripped.txt"
 DEFAULT_GENES = "GPL570-stripped.txt"
