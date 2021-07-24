@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import (
     QTabWidget,
     QVBoxLayout,
     QWidget,
+    QSlider
 )
 
 from analysis_nx import retrieve_mutations
@@ -161,7 +162,7 @@ class Viewer(QWidget):
 
         export_button = QPushButton("Save current view as GEXF")
         export_button.clicked.connect(self.export_gexf)
-
+        
         right_layout = QVBoxLayout()
         right_layout.addWidget(settings_group)
         right_layout.addWidget(patients_group)
@@ -173,15 +174,26 @@ class Viewer(QWidget):
         mainlayout = QGridLayout()
         self.tabs = QTabWidget()
         self.tabs.tabCloseRequested.connect(lambda index: self.tabs.removeTab(index))
-        baseline_idx = self.tabs.addTab(
+        self.tabs.addTab(
             PathwayView(None, []),
-            "Baseline".format(
-                self.thrs_box.value() if self.thrs_box.value() != 0 else ""
-            ),
+            "Baseline",
         )
-        self.tab_indices = {"Baseline": baseline_idx}
         mainlayout.addWidget(self.tabs, 0, 0, -1, 4)
         mainlayout.addWidget(right_pane, 0, 4, 1, 1)
+
+        zoom_widget = QWidget()
+        zoom_layout = QGridLayout()
+        zoom_slider = QSlider(Qt.Horizontal)
+        zoom_slider.setMinimum(25)
+        zoom_slider.setMaximum(500)
+        zoom_slider.setValue(round(self.tabs.currentWidget().zoomFactor() * 100))
+        zoom_slider.valueChanged.connect(lambda val: self.tabs.currentWidget().setZoomFactor(val / 100))
+        zoom_layout.addWidget(QLabel('Zoom'), 0, 0)
+        zoom_layout.addWidget(zoom_slider, 0, 1, 2, 1)
+        zoom_widget.setLayout(zoom_layout)
+        right_layout.addWidget(zoom_widget)
+
+        self.tabs.currentChanged.connect(lambda x: zoom_slider.setValue(round(self.tabs.widget(x).zoomFactor() * 100)))
 
         self.setLayout(mainlayout)
 
@@ -193,14 +205,12 @@ class Viewer(QWidget):
         self.patients_dropdown.setModel(model)
 
     def remove_patient(self):
-        idx_remove = self.observed_patients.currentIndex()
-        to_close = self.observed_patients.itemAt(
-            idx_remove.column(), idx_remove.row()
-        ).data(Qt.DisplayRole)
-        self.observed_patients.takeItem(idx_remove.row())
+        removelist = self.observed_patients.selectedItems()
 
-        self.tabs.removeTab(self.tab_indices[to_close])
-        del self.tab_indices[to_close]
+        for idx in removelist:
+            to_close = idx.data(Qt.DisplayRole)
+            self.tabs.removeTab(self.tabs.indexOf(self.tabs.findChild(QWidget, to_close)))
+            self.observed_patients.takeItem(self.observed_patients.row(idx))
 
     def add_patient(self):
         new_id = self.patients_dropdown.currentText()
@@ -211,8 +221,8 @@ class Viewer(QWidget):
             pathway = self.make_annotated_pathway(mutations)
 
             new_view = PathwayView(pathway, mutations)
+            new_view.setObjectName(new_id)
             tab_idx = self.tabs.addTab(new_view, new_id)
-            self.tab_indices[new_id] = tab_idx
             self.tabs.setCurrentIndex(tab_idx)
             self.observed_patients.addItem(new_id)
             self.patients_dropdown.setCurrentIndex(new_idx + 1)
