@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
 )
 
 from analysis_nx import retrieve_mutations
-from network_builder import Pathway, make_pathway_from_thres
+from network_builder import make_pathway_from_thres
 
 DEFAULT_EXP = "GSE40367-stripped.txt"
 DEFAULT_GENES = "GPL570-stripped.txt"

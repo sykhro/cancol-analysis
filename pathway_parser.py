@@ -81,12 +81,3 @@ def total_genes(pathway: nx.Graph) -> int:
 
 def get_gene_names(pathway: nx.Graph):
     return nx.get_node_attributes(pathway, "label").values()
-
-
-if __name__ == "__main__":
-    res = pathway_to_graph("./pathways/HIPPO.txt")
-    output = nx.nx_agraph.to_agraph(res[1])
-    output.layout("dot")
-    output.draw("test.png")
-
-    print("Total genes: " + str(total_gene_groups(res[1])))

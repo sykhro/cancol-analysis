@@ -38,7 +38,7 @@ def calculate_patient_mutations(pid, seq_data, pathways):
     return results
 
 
-def process_patients(patients):
+def process_patients(patients, mutations_data, pathways):
     results = {}
     for patient in patients:
         results[patient] = calculate_patient_mutations(
@@ -59,19 +59,18 @@ if __name__ == "__main__":
         pathways.append(pathway)
     pathways.sort()
 
-    patients_log = pandas.read_csv("TRIBE2_db.csv")
     mutations_data = pandas.read_csv("TRIBE2_seq_res.csv")
-
+    patients_log = pandas.read_csv("TRIBE2_db.csv")
     columns = ["PatientFirstName"] + [pw[0] for pw in pathways]
 
     out = pandas.ExcelWriter("TRIBE2_avgs.xlsx", engine="openpyxl")
 
-    final = process_patients(patients_log[patients_log["arm"] == 0]["PatientFirstName"])
+    final = process_patients(patients_log[patients_log["arm"] == 0]["PatientFirstName"], mutations_data, pathways)
     final.describe().to_excel(out, "Summary (arm 0)")
     df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
     df.to_excel(out, "Average mutations (arm 0)", index=False)
 
-    final = process_patients(patients_log[patients_log["arm"] == 1]["PatientFirstName"])
+    final = process_patients(patients_log[patients_log["arm"] == 1]["PatientFirstName"], mutations_data, pathways)
     final.describe().to_excel(out, "Summary (arm 1)")
     df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
     df.to_excel(out, "Average mutations (arm 1)", index=False)
