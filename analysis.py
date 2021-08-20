@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 import pandas
+import seaborn as sns
 
 from pathways import *
 
@@ -63,16 +64,36 @@ if __name__ == "__main__":
     patients_log = pandas.read_csv("TRIBE2_db.csv")
     columns = ["PatientFirstName"] + [pw[0] for pw in pathways]
 
+    print(f"Loaded {len(patients_log)} patients and {len(mutations_data)} mutations")
+    
     out = pandas.ExcelWriter("TRIBE2_avgs.xlsx", engine="openpyxl")
 
     final = process_patients(patients_log[patients_log["arm"] == 0]["PatientFirstName"], mutations_data, pathways)
-    final.describe().to_excel(out, "Summary (arm 0)")
+    print("ARM0 processed")
+    if not os.path.exists("arm0"):
+        os.mkdir("arm0")
+    for pw in pathways:
+        name = pw[0]
+        sns_plot = sns.displot(final[name])
+        sns_plot.savefig(f"arm0/{name}.png")
+    arm0d = final.describe()
+    arm0d.to_excel(out, "Summary (arm 0)")
+    print(arm0d.to_latex())
     df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
     df.to_excel(out, "Average mutations (arm 0)", index=False)
 
     final = process_patients(patients_log[patients_log["arm"] == 1]["PatientFirstName"], mutations_data, pathways)
+    print("ARM1 processed")
+    if not os.path.exists("arm1"):
+        os.mkdir("arm1")
+    for pw in pathways:
+        name = pw[0]
+        sns_plot = sns.displot(final[name])
+        sns_plot.savefig(f"arm1/{name}.png")
     final.describe().to_excel(out, "Summary (arm 1)")
+    print(final.describe().to_latex())
     df = final.join(patients_log.set_index("PatientFirstName"), on="PatientFirstName")
     df.to_excel(out, "Average mutations (arm 1)", index=False)
 
+    print("Saving results to TRIBE2_avgs.xlsx")
     out.save()
