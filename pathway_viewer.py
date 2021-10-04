@@ -160,7 +160,7 @@ class Viewer(QWidget):
 
         self.setWindowTitle("Pathway viewer")
 
-        export_button = QPushButton("Save current view as GEXF")
+        export_button = QPushButton("Save current view...")
         export_button.clicked.connect(self.export_gexf)
         
         right_layout = QVBoxLayout()
@@ -277,16 +277,19 @@ class Viewer(QWidget):
         if not active_pathway:
             return
 
-        path, _ = QFileDialog.getSaveFileName(
+        path, ext = QFileDialog.getSaveFileName(
             self,
             "Export graph information",
             self.tabs.tabText(self.tabs.currentIndex()),
-            "GEXF graph representation (*.gexf)",
+            "GEXF graph representation (*.gexf);;Scalable Vector Graphics (SVG) (*.svg)",
         )
         if not path:
             return
 
-        nx.write_gexf(active_pathway.graph, path)
+        if ext == "GEXF graph representation (*.gexf)":
+            nx.write_gexf(active_pathway.graph, path + ".gexf")
+        else:
+            nx.nx_pydot.to_pydot(active_pathway.graph).write_svg(path + ".svg")
 
     def refresh_view(self):
         pw_view = self.tabs.currentWidget()
